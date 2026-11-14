@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- Build stage ---
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM eclipse-temurin:25-jdk-alpine AS builder
 WORKDIR /workspace
 
 # Resolve dependencies first so code changes don't invalidate this layer.
@@ -13,7 +13,7 @@ COPY src src
 RUN ./mvnw -B -q package -DskipTests
 
 # --- Runtime stage ---
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S ticketflow && adduser -S ticketflow -G ticketflow
