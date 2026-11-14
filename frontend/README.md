@@ -1,32 +1,20 @@
-# React + TypeScript + Vite
+# TicketFlow frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + TypeScript + Vite + Tailwind. See the [main README](../README.md) for the full picture.
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev        # http://localhost:5173, proxies /api to http://localhost:8080
+npm run lint       # oxlint, warnings fail the build
+npm run build      # type-check + production bundle
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Point the dev proxy at another backend with `BACKEND_URL=http://host:port npm run dev`,
+or bake a different API base into the bundle with `VITE_API_URL`.
+
+| Path | What it is |
+|---|---|
+| `src/pages/LabPage.tsx` | The Oversell Lab: runs every inventory strategy and visualises the outcome |
+| `src/pages/EventListPage.tsx`, `EventDetailPage.tsx` | Browse events and reserve tickets |
+| `src/pages/MyOrdersPage.tsx`, `OrderCheckoutModal.tsx` | Pay or cancel held orders before the hold expires |
+| `src/api/client.ts` | Axios client: JWT header, `Idempotency-Key` per user action, error messages |

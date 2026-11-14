@@ -7,171 +7,217 @@ import com.ticketflow.booking.model.OrderItem;
 import com.ticketflow.booking.model.OrderStatus;
 import com.ticketflow.booking.repository.OrderRepository;
 import com.ticketflow.common.BusinessException;
-import com.ticketflow.event.model.Event;
 import com.ticketflow.event.model.TicketTier;
-import com.ticketflow.event.repository.EventRepository;
 import com.ticketflow.event.repository.TicketTierRepository;
-import lombok.RequiredArgsConstructor;
+import com.ticketflow.inventory.DeductResult;
+import com.ticketflow.inventory.InventoryStrategy;
+import com.ticketflow.inventory.InventoryStrategyRegistry;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
+/**
+ * Booking flow: reserve stock → create a PENDING order with a payment deadline → pay, cancel or expire.
+ *
+ * <p>Stock is reserved through the configured {@link InventoryStrategy} in its own short transaction.
+ * If persisting the order fails afterwards, the reservation is compensated, so a failed request
+ * never leaks inventory. Order state changes are compare-and-set updates (see {@link OrderRepository}),
+ * which makes payment, cancellation and the expiry sweeper safe against each other and across instances.
+ */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class BookingService {
 
     private final OrderRepository orderRepository;
-    private final EventRepository eventRepository;
     private final TicketTierRepository ticketTierRepository;
+    private final InventoryStrategyRegistry inventoryStrategies;
+    private final TransactionTemplate transactionTemplate;
+    private final Duration holdDuration;
+    private final MeterRegistry meterRegistry;
 
-    @Value("${ticketflow.booking.order-hold-duration-seconds:600}")
-    private long orderHoldDurationSeconds;
-
-    /**
-     * High-concurrency ticket lock:
-     * Utilizes database-level atomic conditional deduction (UPDATE WHERE available >= qty)
-     * eliminating race conditions and overselling without heavy distributed lock overhead.
-     */
-    @Transactional
-    public BookingDto.OrderResponse createOrder(User user, BookingDto.CreateOrderRequest request) {
-        Event event = eventRepository.findById(request.getEventId())
-                .orElseThrow(() -> new BusinessException("Event not found", HttpStatus.NOT_FOUND));
-
-        TicketTier tier = ticketTierRepository.findById(request.getTicketTierId())
-                .orElseThrow(() -> new BusinessException("Ticket tier not found", HttpStatus.NOT_FOUND));
-
-        if (!tier.getEvent().getId().equals(event.getId())) {
-            throw new BusinessException("Selected ticket tier does not belong to this event", HttpStatus.BAD_REQUEST);
-        }
-
-        // Atomic capacity reservation
-        int updatedRows = ticketTierRepository.deductCapacityDirect(tier.getId(), request.getQuantity());
-        if (updatedRows == 0) {
-            throw new BusinessException("Sold out or insufficient tickets available for " + tier.getName(), HttpStatus.CONFLICT);
-        }
-
-        BigDecimal unitPrice = tier.getPrice();
-        BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(request.getQuantity()));
-        Instant expiresAt = Instant.now().plusSeconds(orderHoldDurationSeconds);
-
-        String orderNumber = "ORD-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-
-        Order order = Order.builder()
-                .orderNumber(orderNumber)
-                .user(user)
-                .event(event)
-                .totalAmount(subtotal)
-                .status(OrderStatus.PENDING)
-                .expiresAt(expiresAt)
-                .build();
-
-        OrderItem orderItem = OrderItem.builder()
-                .order(order)
-                .ticketTier(tier)
-                .quantity(request.getQuantity())
-                .unitPrice(unitPrice)
-                .subtotal(subtotal)
-                .build();
-
-        order.getItems().add(orderItem);
-
-        Order saved = orderRepository.save(order);
-        log.info("Ticket reserved successfully. Order #{} created for user {} (expires in {}s)",
-                saved.getOrderNumber(), user.getEmail(), orderHoldDurationSeconds);
-
-        return mapToDto(saved);
+    public BookingService(OrderRepository orderRepository,
+                          TicketTierRepository ticketTierRepository,
+                          InventoryStrategyRegistry inventoryStrategies,
+                          TransactionTemplate transactionTemplate,
+                          MeterRegistry meterRegistry,
+                          @Value("${ticketflow.booking.order-hold-duration-seconds:600}") long holdSeconds) {
+        this.orderRepository = orderRepository;
+        this.ticketTierRepository = ticketTierRepository;
+        this.inventoryStrategies = inventoryStrategies;
+        this.transactionTemplate = transactionTemplate;
+        this.holdDuration = Duration.ofSeconds(holdSeconds);
+        this.meterRegistry = meterRegistry;
     }
 
-    @Transactional
+    public BookingDto.OrderResponse createOrder(User user, BookingDto.CreateOrderRequest request) {
+        long tierId = request.getTicketTierId();
+        int quantity = request.getQuantity();
+        assertTierBelongsToEvent(tierId, request.getEventId());
+
+        InventoryStrategy inventory = inventoryStrategies.active();
+        DeductResult result = inventory.tryDeduct(tierId, quantity);
+        reservationCounter(inventory, result).increment();
+        switch (result) {
+            case SOLD_OUT -> throw new BusinessException("Sold out: not enough tickets left in this tier", HttpStatus.CONFLICT);
+            case CONFLICT -> throw new BusinessException("Too many buyers right now, please retry", HttpStatus.CONFLICT);
+            case SUCCESS -> { /* continue */ }
+        }
+
+        try {
+            return transactionTemplate.execute(status -> persistPendingOrder(user, tierId, quantity));
+        } catch (RuntimeException e) {
+            inventory.release(tierId, quantity);
+            log.warn("Order creation failed after stock was reserved; released {} x tier {}", quantity, tierId, e);
+            throw e;
+        }
+    }
+
     public BookingDto.OrderResponse payOrder(User user, BookingDto.PayOrderRequest request) {
-        Order order = orderRepository.findByOrderNumber(request.getOrderNumber())
-                .orElseThrow(() -> new BusinessException("Order not found: " + request.getOrderNumber(), HttpStatus.NOT_FOUND));
+        Order order = findOwnedOrder(user, request.getOrderNumber());
+        Instant now = Instant.now();
 
-        if (!order.getUser().getId().equals(user.getId())) {
-            throw new BusinessException("Unauthorized access to this order", HttpStatus.FORBIDDEN);
+        Integer confirmed = transactionTemplate.execute(status -> orderRepository.confirmIfPayable(order.getId(), now));
+        if (confirmed != null && confirmed == 1) {
+            log.info("Order {} paid", order.getOrderNumber());
+            return getOrderByNumber(user, order.getOrderNumber());
         }
 
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new BusinessException("Order is in state " + order.getStatus() + " and cannot be paid", HttpStatus.BAD_REQUEST);
+        if (expireOrder(order.getId(), now)) {
+            throw new BusinessException("Order hold expired; the tickets were released", HttpStatus.GONE);
         }
-
-        if (Instant.now().isAfter(order.getExpiresAt())) {
-            // Auto release capacity if expired
-            releaseOrderCapacity(order);
-            order.setStatus(OrderStatus.EXPIRED);
-            orderRepository.save(order);
-            throw new BusinessException("Order hold expired. Capacity has been released.", HttpStatus.GONE);
+        OrderStatus current = findOwnedOrder(user, order.getOrderNumber()).getStatus();
+        if (current == OrderStatus.EXPIRED) {
+            throw new BusinessException("Order hold expired; the tickets were released", HttpStatus.GONE);
         }
+        throw new BusinessException("Order is " + current + " and cannot be paid", HttpStatus.CONFLICT);
+    }
 
-        // Mock payment process success
-        order.setStatus(OrderStatus.CONFIRMED);
-        Order saved = orderRepository.save(order);
-        log.info("Order #{} payment confirmed successfully.", saved.getOrderNumber());
+    public BookingDto.OrderResponse cancelOrder(User user, String orderNumber) {
+        Order order = findOwnedOrder(user, orderNumber);
+        Boolean cancelled = transactionTemplate.execute(status -> {
+            if (orderRepository.cancelIfPending(order.getId(), Instant.now()) == 0) {
+                return false;
+            }
+            releaseStock(order);
+            return true;
+        });
+        if (!Boolean.TRUE.equals(cancelled)) {
+            OrderStatus current = findOwnedOrder(user, orderNumber).getStatus();
+            throw new BusinessException("Order is " + current + " and cannot be cancelled", HttpStatus.CONFLICT);
+        }
+        log.info("Order {} cancelled", orderNumber);
+        return getOrderByNumber(user, orderNumber);
+    }
 
-        return mapToDto(saved);
+    /**
+     * Moves an overdue PENDING order to EXPIRED and returns its stock. Safe to call concurrently:
+     * only the caller whose UPDATE flips the status releases stock.
+     *
+     * @return whether this call performed the expiry
+     */
+    public boolean expireOrder(Long orderId, Instant now) {
+        Boolean expired = transactionTemplate.execute(status -> {
+            if (orderRepository.expireIfOverdue(orderId, now) == 0) {
+                return false;
+            }
+            orderRepository.findById(orderId).ifPresent(this::releaseStock);
+            return true;
+        });
+        return Boolean.TRUE.equals(expired);
     }
 
     @Transactional(readOnly = true)
     public List<BookingDto.OrderResponse> getUserOrders(User user) {
         return orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public BookingDto.OrderResponse getOrderByNumber(User user, String orderNumber) {
+        return toResponse(findOwnedOrder(user, orderNumber));
+    }
+
+    private void assertTierBelongsToEvent(long tierId, long eventId) {
+        Boolean belongs = transactionTemplate.execute(status -> ticketTierRepository.findById(tierId)
+                .map(tier -> tier.getEvent().getId().equals(eventId))
+                .orElseThrow(() -> new BusinessException("Ticket tier not found", HttpStatus.NOT_FOUND)));
+        if (!Boolean.TRUE.equals(belongs)) {
+            throw new BusinessException("Ticket tier does not belong to this event", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private BookingDto.OrderResponse persistPendingOrder(User user, long tierId, int quantity) {
+        TicketTier tier = ticketTierRepository.findById(tierId)
+                .orElseThrow(() -> new BusinessException("Ticket tier not found", HttpStatus.NOT_FOUND));
+        BigDecimal unitPrice = tier.getPrice();
+        BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+
+        Order order = Order.builder()
+                .orderNumber(newOrderNumber())
+                .user(user)
+                .event(tier.getEvent())
+                .totalAmount(subtotal)
+                .status(OrderStatus.PENDING)
+                .expiresAt(Instant.now().plus(holdDuration))
+                .build();
+        order.getItems().add(OrderItem.builder()
+                .order(order)
+                .ticketTier(tier)
+                .quantity(quantity)
+                .unitPrice(unitPrice)
+                .subtotal(subtotal)
+                .build());
+
+        Order saved = orderRepository.save(order);
+        log.info("Order {} reserved {} x '{}' for user {} (hold {}s)",
+                saved.getOrderNumber(), quantity, tier.getName(), user.getId(), holdDuration.toSeconds());
+        return toResponse(saved);
+    }
+
+    private void releaseStock(Order order) {
+        InventoryStrategy inventory = inventoryStrategies.active();
+        for (OrderItem item : order.getItems()) {
+            inventory.release(item.getTicketTier().getId(), item.getQuantity());
+        }
+    }
+
+    private Order findOwnedOrder(User user, String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
                 .orElseThrow(() -> new BusinessException("Order not found: " + orderNumber, HttpStatus.NOT_FOUND));
-
         if (!order.getUser().getId().equals(user.getId())) {
-            throw new BusinessException("Unauthorized to view this order", HttpStatus.FORBIDDEN);
+            // 404 rather than 403, so order numbers cannot be probed.
+            throw new BusinessException("Order not found: " + orderNumber, HttpStatus.NOT_FOUND);
         }
-
-        return mapToDto(order);
+        return order;
     }
 
-    /**
-     * Automatic sweep for expired hold orders: runs every 30 seconds
-     */
-    @Scheduled(fixedRate = 30000)
-    @Transactional
-    public void cleanupExpiredOrders() {
-        List<Order> expiredOrders = orderRepository.findExpiredOrders(OrderStatus.PENDING, Instant.now());
-        if (expiredOrders.isEmpty()) {
-            return;
-        }
-
-        log.info("Found {} expired ticket reservations. Releasing capacity...", expiredOrders.size());
-        for (Order order : expiredOrders) {
-            try {
-                releaseOrderCapacity(order);
-                order.setStatus(OrderStatus.EXPIRED);
-                orderRepository.save(order);
-                log.info("Released capacity for expired order #{}", order.getOrderNumber());
-            } catch (Exception e) {
-                log.error("Failed to release capacity for order #{}: {}", order.getOrderNumber(), e.getMessage());
-            }
-        }
+    /** {@code ticketflow_booking_reservations_total{strategy, result}} for the Grafana dashboard. */
+    private Counter reservationCounter(InventoryStrategy inventory, DeductResult result) {
+        return Counter.builder("ticketflow.booking.reservations")
+                .description("Stock reservation attempts by inventory strategy and outcome")
+                .tag("strategy", inventory.type().name())
+                .tag("result", result.name())
+                .register(meterRegistry);
     }
 
-    private void releaseOrderCapacity(Order order) {
-        for (OrderItem item : order.getItems()) {
-            ticketTierRepository.releaseCapacityDirect(item.getTicketTier().getId(), item.getQuantity());
-        }
+    private static String newOrderNumber() {
+        return "ORD-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
     }
 
-    private BookingDto.OrderResponse mapToDto(Order order) {
-        List<BookingDto.OrderItemResponse> itemDtos = order.getItems().stream()
+    private BookingDto.OrderResponse toResponse(Order order) {
+        List<BookingDto.OrderItemResponse> items = order.getItems().stream()
                 .map(i -> BookingDto.OrderItemResponse.builder()
                         .ticketTierId(i.getTicketTier().getId())
                         .tierName(i.getTicketTier().getName())
@@ -179,7 +225,7 @@ public class BookingService {
                         .unitPrice(i.getUnitPrice())
                         .subtotal(i.getSubtotal())
                         .build())
-                .collect(Collectors.toList());
+                .toList();
 
         return BookingDto.OrderResponse.builder()
                 .orderId(order.getId())
@@ -191,8 +237,7 @@ public class BookingService {
                 .status(order.getStatus())
                 .expiresAt(order.getExpiresAt())
                 .createdAt(order.getCreatedAt())
-                .items(itemDtos)
+                .items(items)
                 .build();
     }
 }
-

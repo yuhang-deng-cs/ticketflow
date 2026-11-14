@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock } from 'lucide-react';
 
 interface CountdownTimerProps {
@@ -13,13 +13,19 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({ expiresAt, onExp
     isExpired: false,
   });
 
+  // Keep the latest callback without restarting the timer when the parent re-renders.
+  const onExpireRef = useRef(onExpire);
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  }, [onExpire]);
+
   useEffect(() => {
     const calculateTimeLeft = () => {
       const difference = new Date(expiresAt).getTime() - new Date().getTime();
 
       if (difference <= 0) {
         setTimeLeft({ minutes: 0, seconds: 0, isExpired: true });
-        if (onExpire) onExpire();
+        onExpireRef.current?.();
         return;
       }
 

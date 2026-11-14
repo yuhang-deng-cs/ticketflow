@@ -17,13 +17,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
-@Tag(name = "Booking & Orders", description = "High-concurrency ticket reservations, payment, and order history")
+@Tag(name = "Orders", description = "Reserve, pay, cancel and list orders")
 public class BookingController {
 
     private final BookingService bookingService;
 
     @PostMapping
-    @Operation(summary = "Reserve ticket (locks inventory with 10-minute hold)")
+    @Operation(summary = "Reserve tickets and create a PENDING order with a payment deadline",
+            description = "Send an Idempotency-Key header to make retries safe: a repeated key replays the first response.")
     public ResponseEntity<ApiResponse<BookingDto.OrderResponse>> createOrder(
             @AuthenticationPrincipal User user,
             @Valid @RequestBody BookingDto.CreateOrderRequest request) {
@@ -31,11 +32,19 @@ public class BookingController {
     }
 
     @PostMapping("/pay")
-    @Operation(summary = "Confirm payment and finalize ticket issuance")
+    @Operation(summary = "Pay a PENDING order (mock payment)")
     public ResponseEntity<ApiResponse<BookingDto.OrderResponse>> payOrder(
             @AuthenticationPrincipal User user,
             @Valid @RequestBody BookingDto.PayOrderRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("Payment confirmed", bookingService.payOrder(user, request)));
+    }
+
+    @PostMapping("/{orderNumber}/cancel")
+    @Operation(summary = "Cancel a PENDING order and release its tickets")
+    public ResponseEntity<ApiResponse<BookingDto.OrderResponse>> cancelOrder(
+            @AuthenticationPrincipal User user,
+            @PathVariable String orderNumber) {
+        return ResponseEntity.ok(ApiResponse.ok("Order cancelled", bookingService.cancelOrder(user, orderNumber)));
     }
 
     @GetMapping

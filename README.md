@@ -1,210 +1,162 @@
-# 🎫 TicketFlow: Cloud-Native High-Concurrency Ticketing Platform
+# TicketFlow · Oversell Lab
 
-[![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue?logo=github-actions)](https://github.com)
-[![Java](https://img.shields.io/badge/Java-21%20LTS-orange?logo=openjdk)](https://openjdk.org)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.4-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
-[![React](https://img.shields.io/badge/React-19%20%2B%20TS-61DAFB?logo=react)](https://react.dev)
-[![AWS](https://img.shields.io/badge/AWS-ECS%20Fargate%20%7C%20RDS-FF9900?logo=amazon-aws)](https://aws.amazon.com)
-[![Terraform](https://img.shields.io/badge/IaC-Terraform%201.5%2B-7B42BC?logo=terraform)](https://www.terraform.io)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+**1,000 buyers. 100 tickets. Which inventory strategy oversells?**
 
-> A production-grade distributed event ticketing platform engineered to satisfy high-demand enterprise JD requirements: **Java 21 + Spring Boot 3 Microservices**, **React 19 + TypeScript Full-Stack**, and **AWS ECS Fargate + Terraform DevOps**.
+TicketFlow is a working flash-sale ticketing system (Spring Boot 3, Java 21, PostgreSQL, Redis, React) built around one question every booking system has to answer. It ships with the **Oversell Lab**: race any number of buyers against five interchangeable inventory strategies on a real database, and see who oversells, who leaves seats unsold, and who is fast.
 
----
+[![CI](https://github.com/cs50-citizen/ticketflow/actions/workflows/ci.yml/badge.svg)](https://github.com/cs50-citizen/ticketflow/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
+![Spring Boot 3.3](https://img.shields.io/badge/Spring%20Boot-3.3-6db33f?logo=springboot)
+![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql)
+![Redis 7](https://img.shields.io/badge/Redis-7-dc382d?logo=redis)
 
-## 🌟 Key Engineering Highlights
+[中文说明](README.zh-CN.md) · [Strategy deep dive](docs/strategies.md) · [Bugs we found and fixed](docs/pitfalls.md)
 
-- **Zero-Oversell Concurrency Engine**: Solves the race condition problem during high-volume flash ticketing surges using **atomic conditional database deductions** and **optimistic locking**, validated by multi-threaded integration stress tests.
-- **End-to-End API Idempotency**: Enforces `Idempotency-Key` headers on state-mutating booking & checkout operations, preventing duplicate charges and double reservations during network retries or accidental double-clicking.
-- **Distributed Request Tracing**: Injects unified `X-Trace-Id` correlation tokens into SLF4J MDC, application logs, and HTTP response headers for rapid microservice debugging.
-- **10-Minute Hold & Auto-Sweep**: Users reserve tickets with a 10-minute payment countdown window. Expired reservations are automatically swept and released back to available inventory via asynchronous scheduled routines.
-- **Stateless JWT Security**: Spring Security 6 with custom filters, role-based access control (`CUSTOMER`, `ADMIN`), and BCrypt password encryption.
-- **100% Infrastructure as Code (IaC)**: Modular Terraform scripts orchestrating AWS VPC, Application Load Balancers, ECS Fargate containers, Amazon RDS (PostgreSQL 16), and S3 + CloudFront CDN.
-- **Enterprise Observability**: Native integration with Spring Boot Actuator, Prometheus scraping (`/actuator/prometheus`), and pre-configured Grafana dashboards.
-- **Automated CI/CD**: GitHub Actions workflow covering JUnit 5 concurrency testing, frontend linting, Docker multi-stage image verification, and Terraform validation.
+![Oversell Lab results: NAIVE sells 1000 of 100 tickets; all other strategies sell exactly 100, ATOMIC_UPDATE is about 5x faster](docs/assets/oversell-lab-results.svg)
 
----
-
-## 🏗️ System Architecture
-
-```mermaid
-flowchart TD
-    subgraph Client["Client Tier"]
-        SPA["React 19 + TypeScript SPA\n(AWS CloudFront + S3)"]
-    end
-
-    subgraph AWS_Cloud["AWS Production VPC (Terraform Managed)"]
-        ALB["Application Load Balancer (ALB)\nPath-based routing & SSL"]
-
-        subgraph ECS_Cluster["ECS Fargate Task Fleet"]
-            Backend["Spring Boot 3 REST API\n(Stateless, Java 21)"]
-        end
-
-        subgraph Storage_Tier["Data & Cache Tier"]
-            RDS[("Amazon RDS\nPostgreSQL 16")]
-            Redis[("Redis 7\nCache & Rate Limiting")]
-        end
-    end
-
-    subgraph Monitoring["Observability & DevOps"]
-        GH["GitHub Actions CI/CD"]
-        Prom["Prometheus & Grafana"]
-    end
-
-    SPA -->|HTTPS / REST API| ALB
-    ALB -->|Healthcheck /actuator/health| Backend
-    Backend -->|Atomic Capacity Updates| RDS
-    Backend -->|Distributed Sessions & Cache| Redis
-
-    GH -.->|Automated Deploy| ECS_Cluster
-    Prom -.->|Scrape /metrics| Backend
-```
-
----
-
-## 🔬 Concurrency Architecture: The Zero-Oversell Proof
-
-In standard read-then-write architectures, simultaneous requests create race conditions that oversell limited seating. TicketFlow guarantees data consistency using conditional atomic SQL operations:
-
-```sql
-UPDATE ticket_tiers
-SET available_capacity = available_capacity - :quantity
-WHERE id = :tierId AND available_capacity >= :quantity;
-```
-
-### Verified Multi-Threaded Test
-Located at `backend/src/test/java/com/ticketflow/booking/BookingConcurrencyTest.java`:
-- **Scenario**: 50 simultaneous threads compete for 10 tickets on a flash sale.
-- **Result**: Exactly 10 orders created, 40 requests handled gracefully with `409 Conflict`, remaining inventory strictly equals 0. **0 Oversold**.
-
----
-
-## 🚀 Quickstart Guide
-
-### Option 1: One-Click Local Stack (Docker Compose)
-Spins up PostgreSQL 16, Redis 7, Spring Boot Backend, React Frontend, Prometheus, and Grafana:
+## Try it in one command
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/ticketflow.git
+git clone https://github.com/cs50-citizen/ticketflow.git
 cd ticketflow
-
-# Launch the entire cloud stack
-docker-compose up --build
+docker compose up --build
 ```
 
-- **Web Frontend**: [http://localhost:3000](http://localhost:3000)
-- **Backend API & Swagger**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-- **Prometheus Dashboard**: [http://localhost:9090](http://localhost:9090)
-- **Grafana Metrics**: [http://localhost:3001](http://localhost:3001) *(login: `admin` / `admin`)*
+Open **http://localhost:3000** and press **Run all strategies**.
 
----
+| Service | URL |
+|---|---|
+| App + Oversell Lab | http://localhost:3000 |
+| Swagger UI | http://localhost:3000/swagger-ui.html |
+| Grafana (admin / admin) | http://localhost:3001 |
+| Prometheus | http://localhost:9090 |
 
-### Option 2: Native Local Development
+<details>
+<summary><b>No Docker?</b> Run it with an in-memory database instead</summary>
 
-#### 1. Backend (Java 21 + Spring Boot 3)
-```bash
-cd backend
-./mvnw spring-boot:run
-```
-*Note: In development profile, an in-memory H2 database is enabled automatically with seed demo concerts and test accounts.*
-
-#### 2. Frontend (React + TypeScript + Vite)
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
----
-
-## 📊 Pre-Configured Demo Credentials
-
-The application initializes with instant test users (also accessible via the **"Instant Demo Logins"** button in the UI):
-
-| Role | Email | Password | Permissions |
-|---|---|---|---|
-| **Customer** | `demo@ticketflow.io` | `password123` | Browse events, reserve tickets, view tickets |
-| **Admin** | `admin@ticketflow.io` | `admin123` | Platform oversight & inventory metrics |
-
----
-
-## ☁️ Infrastructure as Code (Terraform)
-
-All AWS infrastructure is managed under `infra/terraform/`:
+Needs Java 21 and Node 22. Uses H2, so everything except the Redis strategy works.
 
 ```bash
-cd infra/terraform
-
-# Initialize Terraform AWS provider
-terraform init
-
-# Preview changes
-terraform plan
-
-# Provision AWS VPC, RDS, ECS Fargate, ALB, and CloudFront
-terraform apply -auto-approve
-
-# Destroy infrastructure after demo to incur $0 cost
-terraform destroy -auto-approve
+cd backend && ./mvnw spring-boot:run      # http://localhost:8080
+cd frontend && npm install && npm run dev  # http://localhost:5173
 ```
+</details>
 
----
+Shareable scenarios: `http://localhost:3000/?stock=1&buyers=200&run=1` opens the Lab and starts racing 200 buyers for one last seat.
 
-## 📈 Performance Benchmarking (k6)
+![The Oversell Lab UI after a run](docs/assets/lab-screenshot.png)
 
-Run the included k6 load test simulating 300+ concurrent users booking tickets:
+## The five strategies
+
+All five implement one interface, [`InventoryStrategy`](backend/src/main/java/com/ticketflow/inventory/InventoryStrategy.java). Checkout uses whichever you configure (`INVENTORY_STRATEGY`); the Lab can run any of them.
+
+| Strategy | How it reserves a ticket | Oversells? | The catch |
+|---|---|:---:|---|
+| `NAIVE` | `SELECT` stock, check in Java, `UPDATE` with the computed value | **Yes** | Lost updates. Included on purpose so you can watch it break |
+| `PESSIMISTIC_LOCK` | `SELECT … FOR UPDATE`, then decrement | No | Buyers queue on one row lock, each holding a DB connection while waiting |
+| `OPTIMISTIC_LOCK` | JPA `@Version` check on commit, up to 3 retries | No | Under a stampede most attempts collide: buyers get turned away while seats are still free |
+| `ATOMIC_UPDATE` *(default)* | `UPDATE … SET stock = stock - n WHERE stock >= n` | No | Still one hot row in the database; nothing filters traffic before it |
+| `REDIS_LUA` | Lua script checks + decrements in Redis, winners then do the atomic `UPDATE` | No | Needs Redis; cache drift is compensated (it can cause false "sold out", never oversell) |
+
+Full write-ups with the SQL, failure modes and when to pick each: **[docs/strategies.md](docs/strategies.md)**.
+
+## Results
+
+Median of three runs on one laptop (Ryzen 9 7945HX, PostgreSQL 14 embedded, HikariCP pool of 20, 200 worker threads). Absolute numbers depend on your hardware, so compare the strategies with each other, not with other machines. CI re-runs the same race on **PostgreSQL 16 + Redis 7** for every commit and posts the table in the job summary.
+
+**Flash sale: 1,000 buyers, 100 tickets**
+
+| Strategy | Sold | Oversold | Throughput | p99 latency |
+|---|---:|---:|---:|---:|
+| `NAIVE` | 1,000 | **900** ❌ | 1,276 req/s | 489 ms |
+| `PESSIMISTIC_LOCK` | 100 | 0 | 2,055 req/s | 371 ms |
+| `OPTIMISTIC_LOCK` | 100 | 0 (184 buyers bounced by contention) | 2,114 req/s | 467 ms |
+| `ATOMIC_UPDATE` | 100 | 0 | **10,528 req/s** | **83 ms** |
+
+**Fair fight: 500 buyers, 500 tickets (one each)**
+
+| Strategy | Sold | What went wrong |
+|---|---:|---|
+| `NAIVE` | 500 | The DB still shows **475 free seats** that were already sold: they will be sold twice |
+| `PESSIMISTIC_LOCK` | 500 | Nothing |
+| `OPTIMISTIC_LOCK` | 193 | **307 seats left unsold** although every buyer wanted one |
+| `ATOMIC_UPDATE` | 500 | Nothing |
+
+What surprised us:
+
+- **NAIVE can oversell even when "sold" looks right.** In the fair fight it sold exactly 500, so a quick check passes. The bug only shows in the stock column, which the Lab reports as *phantom stock*.
+- **Optimistic locking is correct, and it still costs sales.** It never oversold, but with many buyers on one row it rejected 60% of them while seats remained. That is fine for rarely-contended rows and bad for a flash sale.
+- **The simplest correct answer was also the fastest.** One conditional `UPDATE` beat the explicit lock by 2–5× (5× in the flash sale), because nobody holds a lock across a round trip between Java and the database.
+
+## More than a benchmark
+
+The booking flow around the strategies is built the way you'd want it in production:
+
+- **Reserve → hold → pay / cancel / expire.** Orders hold seats for 10 minutes. Every state change is a compare-and-set `UPDATE … WHERE status = 'PENDING'`, so a payment racing the expiry sweeper cannot both confirm the order *and* give its seat back. This was a real bug here, [see the write-up](docs/pitfalls.md#1-payment-racing-the-expiry-sweeper-sold-the-same-seat-twice).
+- **Compensation.** Stock is reserved in its own short transaction; if saving the order fails, the reservation is released.
+- **Idempotent retries.** `POST` requests accept an `Idempotency-Key`. A retry replays the first response (`Idempotent-Replayed: true`), a key reused with a different body gets `422`, keys are scoped per user, and a `5xx` frees the key. Backed by Redis in production and in-memory in dev.
+- **Multi-instance safe.** No in-process locks; the expiry sweeper needs no leader election because of the compare-and-set.
+- **Observability.** Every response carries a `traceId` (also in logs via MDC). The Prometheus metrics include `ticketflow_booking_reservations_total{strategy,result}`, and a provisioned Grafana dashboard shows reservations, latency, errors and connection-pool pressure.
+- **Security basics.** Stateless JWT, BCrypt, the secret is required in prod (no default), JSON 401/403 responses, actuator locked down, CORS allow-list, no stack traces in error responses.
+- **Deployable.** Multi-stage Docker images, `docker compose` for the full stack, and Terraform for AWS (VPC, ECS Fargate, RDS PostgreSQL, ElastiCache Redis, ALB, S3 + CloudFront, secrets in SSM).
+
+## Tests
 
 ```bash
-k6 run k6/stress_test.js
+cd backend && ./mvnw verify
 ```
 
-### Benchmark Results
-- **Throughput**: ~850 RPS (Requests Per Second)
-- **p95 Latency**: 42ms
-- **p99 Latency**: 68ms
-- **HTTP 5xx Failure Rate**: **0.00%**
+- `InventoryStrategyConcurrencyTest`: 200 buyers, 20 tickets, every strategy. Asserts the safe ones never oversell and that `NAIVE` does.
+- `PostgresStrategyComparisonTest`: the same race on real PostgreSQL 16 + Redis 7 via Testcontainers (skipped without Docker, always run in CI).
+- `BookingServiceTest`: concurrent booking, cancel, expiry, ownership, and the pay-vs-expiry race as a regression test.
+- `IdempotencyTest`: replay, payload mismatch, per-user scoping.
 
----
+Load-test the real checkout API with [k6](https://k6.io): `k6 run k6/stress_test.js` (see the header of the script for options).
 
-## 📂 Project Structure
+## API
+
+| Method | Path | Auth | |
+|---|---|:---:|---|
+| `GET` | `/api/v1/lab/strategies` | – | Strategies, availability, which one checkout uses |
+| `POST` | `/api/v1/lab/runs` | – | `{"strategy":"NAIVE","stock":100,"buyers":1000}` |
+| `GET` | `/api/v1/events` | – | Events with live availability |
+| `POST` | `/api/v1/auth/login` | – | Demo: `demo@ticketflow.test` / `password123` |
+| `POST` | `/api/v1/orders` | JWT | Reserve; send `Idempotency-Key` |
+| `POST` | `/api/v1/orders/pay` | JWT | Mock payment |
+| `POST` | `/api/v1/orders/{orderNumber}/cancel` | JWT | Release a held order |
+| `GET` | `/api/v1/orders` | JWT | My orders |
+
+Interactive docs at `/swagger-ui.html`.
+
+## Project layout
 
 ```
-ticketflow/
-├── backend/                       # Spring Boot 3.3 (Java 21)
-│   ├── src/main/java/com/ticketflow/
-│   │   ├── auth/                  # JWT authentication & user domain
-│   │   ├── event/                 # Event & ticket tier catalog
-│   │   ├── booking/               # Concurrency booking & 10-min countdown
-│   │   └── config/                # Security, Actuator, OpenAPI, Redis
-│   ├── src/main/resources/
-│   │   ├── application.yml        # Multi-profile configurations (dev/prod)
-│   │   └── db/migration/          # Flyway SQL schema & data migrations
-│   ├── src/test/java/             # High-concurrency test suite
-│   └── Dockerfile                 # Multi-stage lightweight JRE 21 image
-├── frontend/                      # React 19 + TypeScript + Vite
-│   ├── src/
-│   │   ├── api/                   # Axios API client with JWT interceptor
-│   │   ├── components/            # UI components (Navbar, Timers, Banners)
-│   │   └── pages/                 # Event list, detail, and ticket wallet
-│   ├── nginx.conf                 # Production Nginx reverse proxy
-│   └── Dockerfile                 # Multi-stage Nginx build
-├── infra/
-│   ├── terraform/                 # 100% AWS Infrastructure as Code
-│   │   ├── vpc.tf                 # Multi-AZ VPC & Subnets
-│   │   ├── rds.tf                 # Amazon RDS PostgreSQL 16
-│   │   ├── ecs.tf                 # ECS Fargate task definitions & service
-│   │   ├── alb.tf                 # Application Load Balancer
-│   │   └── s3_cloudfront.tf       # Static SPA CDN distribution
-│   └── prometheus/                # Monitoring configuration
-├── k6/                            # High-load stress testing scripts
-├── .github/workflows/ci.yml       # Production CI/CD pipeline
-└── docker-compose.yml             # Complete local stack orchestration
+backend/src/main/java/com/ticketflow/
+  inventory/       InventoryStrategy + the five implementations  ← start here
+  lab/             Oversell Lab: runs a strategy against a throwaway tier
+  booking/         Orders: reserve, pay, cancel, expiry sweeper
+  idempotency/     Idempotency-Key filter + Redis / in-memory stores
+  auth/, event/    Users + JWT, events + ticket tiers
+  config/          Security, tracing, OpenAPI, demo data
+frontend/src/pages/LabPage.tsx      The Lab UI
+infra/terraform/                    AWS deployment
+infra/grafana/                      Provisioned dashboard
+k6/stress_test.js                   End-to-end load test
+docs/                               Strategy deep dive, pitfalls
 ```
 
----
+## Contributing
 
-## 📄 License
-This project is open-source under the [MIT License](LICENSE).
+The easiest way in is to **add a strategy**: implement `InventoryStrategy`, add a value to `InventoryStrategyType`, and the Lab, tests and UI pick it up. Ideas that would make great PRs:
 
+- Single-writer queue (Kafka / Redis Streams) that serialises orders per tier
+- Sharded stock counters (split one hot row into N rows)
+- PostgreSQL advisory locks
+- `SELECT … FOR UPDATE SKIP LOCKED` for assigned seating (pick any free seat)
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Ran the Lab on interesting hardware or a managed database? Post your numbers in [Discussions](https://github.com/cs50-citizen/ticketflow/discussions).
+
+## License
+
+[MIT](LICENSE). All events and venues in the demo data are fictional; payments are mocked.

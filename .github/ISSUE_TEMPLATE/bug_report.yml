@@ -1,0 +1,26 @@
+name: Bug report
+description: Something behaves differently from what the docs or tests say
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the traceId from the API response if you have one.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. docker compose up --build
+        2. Open the Lab, run ATOMIC_UPDATE with 100 tickets / 1000 buyers
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: docker compose / mvnw spring-boot:run, OS, Java version

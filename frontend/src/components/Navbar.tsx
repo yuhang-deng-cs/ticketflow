@@ -1,13 +1,13 @@
 import React from 'react';
-import { Ticket, User as UserIcon, LogOut, Layers } from 'lucide-react';
-import type { User } from '../types';
+import { Ticket, User as UserIcon, LogOut, Layers, FlaskConical } from 'lucide-react';
+import type { User, View } from '../types';
 
 interface NavbarProps {
   user: User | null;
   onOpenAuth: () => void;
   onLogout: () => void;
-  currentView: 'events' | 'orders';
-  setCurrentView: (view: 'events' | 'orders') => void;
+  currentView: View;
+  setCurrentView: (view: View) => void;
   onOpenArchitecture: () => void;
 }
 
@@ -23,7 +23,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand */}
-        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setCurrentView('events')}>
+        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setCurrentView('lab')}>
           <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
             <Ticket className="h-6 w-6 text-white" />
           </div>
@@ -32,13 +32,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               TicketFlow
             </span>
             <span className="hidden sm:inline-block ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
-              Cloud-Native v1.0
+              Oversell Lab
             </span>
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex items-center space-x-1 sm:space-x-3">
+          <button
+            onClick={() => setCurrentView('lab')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+              currentView === 'lab'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <FlaskConical className="h-4 w-4" />
+            <span>Lab</span>
+          </button>
+
           <button
             onClick={() => setCurrentView('events')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
@@ -47,7 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
             }`}
           >
-            Explore Events
+            Events
           </button>
 
           {user && (
@@ -59,18 +71,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
               }`}
             >
-              My Tickets & Orders
+              My Orders
             </button>
           )}
 
           <button
             onClick={onOpenArchitecture}
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition"
-            title="Inspect 1+2+3 System Architecture & Live Metrics"
+            title="How TicketFlow prevents overselling"
           >
             <Layers className="h-4 w-4" />
-            <span className="hidden md:inline">Live Architecture & Metrics</span>
-            <span className="md:hidden">Arch</span>
+            <span className="hidden md:inline">How it works</span>
           </button>
         </nav>
 

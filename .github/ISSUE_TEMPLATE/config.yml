@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/cs50-citizen/ticketflow/discussions
+    about: Ask how something works or share Lab results from your machine.
