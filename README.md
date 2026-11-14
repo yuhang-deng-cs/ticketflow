@@ -4,7 +4,7 @@
 
 TicketFlow is a working flash-sale ticketing system (Spring Boot 3, Java 21, PostgreSQL, Redis, React) built around one question every booking system has to answer. It ships with the **Oversell Lab**: race any number of buyers against five interchangeable inventory strategies on a real database, and see who oversells, who leaves seats unsold, and who is fast.
 
-[![CI](https://github.com/cs50-citizen/ticketflow/actions/workflows/ci.yml/badge.svg)](https://github.com/cs50-citizen/ticketflow/actions/workflows/ci.yml)
+[![CI](https://github.com/yuhang-deng-cs/ticketflow/actions/workflows/ci.yml/badge.svg)](https://github.com/yuhang-deng-cs/ticketflow/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot 3.3](https://img.shields.io/badge/Spring%20Boot-3.3-6db33f?logo=springboot)
@@ -18,7 +18,7 @@ TicketFlow is a working flash-sale ticketing system (Spring Boot 3, Java 21, Pos
 ## Try it in one command
 
 ```bash
-git clone https://github.com/cs50-citizen/ticketflow.git
+git clone https://github.com/yuhang-deng-cs/ticketflow.git
 cd ticketflow
 docker compose up --build
 ```
@@ -155,7 +155,7 @@ The easiest way in is to **add a strategy**: implement `InventoryStrategy`, add 
 - PostgreSQL advisory locks
 - `SELECT … FOR UPDATE SKIP LOCKED` for assigned seating (pick any free seat)
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Ran the Lab on interesting hardware or a managed database? Post your numbers in [Discussions](https://github.com/cs50-citizen/ticketflow/discussions).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Ran the Lab on interesting hardware or a managed database? Post your numbers in [Discussions](https://github.com/yuhang-deng-cs/ticketflow/discussions).
 
 ## License
 

@@ -22,7 +22,7 @@ public class OpenApiConfig {
                         .description("Flash-sale ticketing with pluggable inventory strategies, plus the Oversell Lab")
                         .version("v1")
                         .license(new License().name("MIT").url("https://opensource.org/licenses/MIT"))
-                        .contact(new Contact().name("TicketFlow on GitHub").url("https://github.com/cs50-citizen/ticketflow")))
+                        .contact(new Contact().name("TicketFlow on GitHub").url("https://github.com/yuhang-deng-cs/ticketflow")))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new Components()
                         .addSecuritySchemes(securitySchemeName,

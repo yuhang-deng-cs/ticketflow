@@ -4,7 +4,7 @@
 
 TicketFlow 是一个能跑起来的秒杀/抢票系统，技术栈是 Spring Boot 3、Java 21、PostgreSQL、Redis 和 React。它附带一个 **超卖实验室（Oversell Lab）**：在真实数据库上让任意数量的买家同时抢票，对比 5 种可插拔的库存扣减策略，看哪种会超卖、哪种会卖不完、哪种最快。
 
-[![CI](https://github.com/cs50-citizen/ticketflow/actions/workflows/ci.yml/badge.svg)](https://github.com/cs50-citizen/ticketflow/actions/workflows/ci.yml)
+[![CI](https://github.com/yuhang-deng-cs/ticketflow/actions/workflows/ci.yml/badge.svg)](https://github.com/yuhang-deng-cs/ticketflow/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 [English](README.md) · [策略详解（英文）](docs/strategies.md) · [我们踩过的坑（英文）](docs/pitfalls.md)
@@ -14,7 +14,7 @@ TicketFlow 是一个能跑起来的秒杀/抢票系统，技术栈是 Spring Boo
 ## 一条命令跑起来
 
 ```bash
-git clone https://github.com/cs50-citizen/ticketflow.git
+git clone https://github.com/yuhang-deng-cs/ticketflow.git
 cd ticketflow
 docker compose up --build
 ```
@@ -96,7 +96,7 @@ cd backend && ./mvnw verify
 - PostgreSQL advisory lock
 - `SELECT … FOR UPDATE SKIP LOCKED`（选座场景）
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)。如果你在别的硬件或云数据库上跑出了有意思的数据，欢迎发到 [Discussions](https://github.com/cs50-citizen/ticketflow/discussions)。
+详见 [CONTRIBUTING.md](CONTRIBUTING.md)。如果你在别的硬件或云数据库上跑出了有意思的数据，欢迎发到 [Discussions](https://github.com/yuhang-deng-cs/ticketflow/discussions)。
 
 ## 许可证
 

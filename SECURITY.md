@@ -1,6 +1,6 @@
 # Security policy
 
-TicketFlow is a reference and learning project, not a hosted service. Still, if you find a vulnerability in the code (authentication bypass, injection, secrets handling, an unsafe default), please report it privately through [GitHub security advisories](https://github.com/cs50-citizen/ticketflow/security/advisories/new) rather than a public issue.
+TicketFlow is a reference and learning project, not a hosted service. Still, if you find a vulnerability in the code (authentication bypass, injection, secrets handling, an unsafe default), please report it privately through [GitHub security advisories](https://github.com/yuhang-deng-cs/ticketflow/security/advisories/new) rather than a public issue.
 
 Before deploying anything based on this repo:
 

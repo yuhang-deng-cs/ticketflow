@@ -77,7 +77,7 @@ export const ArchitectureModal: React.FC<ArchitectureModalProps> = ({ isOpen, on
             OpenAPI / Swagger UI
           </a>
           <a
-            href="https://github.com/cs50-citizen/ticketflow/blob/main/docs/strategies.md"
+            href="https://github.com/yuhang-deng-cs/ticketflow/blob/main/docs/strategies.md"
             target="_blank"
             rel="noreferrer"
             className="text-indigo-400 hover:text-indigo-300"
@@ -85,7 +85,7 @@ export const ArchitectureModal: React.FC<ArchitectureModalProps> = ({ isOpen, on
             Strategy deep dive
           </a>
           <a
-            href="https://github.com/cs50-citizen/ticketflow/blob/main/docs/pitfalls.md"
+            href="https://github.com/yuhang-deng-cs/ticketflow/blob/main/docs/pitfalls.md"
             target="_blank"
             rel="noreferrer"
             className="text-indigo-400 hover:text-indigo-300"

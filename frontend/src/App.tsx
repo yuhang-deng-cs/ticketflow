@@ -115,7 +115,7 @@ export const App: React.FC = () => {
               API reference
             </a>
             <a
-              href="https://github.com/cs50-citizen/ticketflow"
+              href="https://github.com/yuhang-deng-cs/ticketflow"
               target="_blank"
               rel="noreferrer"
               className="text-slate-400 hover:text-indigo-400 transition"
