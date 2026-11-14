@@ -5,20 +5,18 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ticketflow}
     username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    password: ${DB_PASSWORD}
     hikari:
-      maximum-pool-size: 20
+      maximum-pool-size: ${DB_POOL_SIZE:20}
       minimum-idle: 5
       idle-timeout: 300000
       connection-timeout: 20000
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
     show-sql: false
   flyway:
     enabled: true
-    baseline-on-migrate: true
     locations: classpath:db/migration
   data:
     redis:
@@ -26,4 +24,13 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       timeout: 2000ms
+  h2:
+    console:
+      enabled: false
 
+ticketflow:
+  jwt:
+    # No fallback: the app fails fast if JWT_SECRET is missing.
+    secret: ${JWT_SECRET}
+  idempotency:
+    store: redis

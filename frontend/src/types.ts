@@ -1,3 +1,5 @@
+export type View = 'lab' | 'events' | 'orders';
+
 export type Role = 'CUSTOMER' | 'ADMIN';
 
 export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED';
@@ -57,6 +59,45 @@ export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
+  traceId?: string;
   timestamp: string;
 }
 
+
+export type StrategyType = 'NAIVE' | 'PESSIMISTIC_LOCK' | 'OPTIMISTIC_LOCK' | 'ATOMIC_UPDATE' | 'REDIS_LUA';
+
+export interface StrategyInfo {
+  type: StrategyType;
+  displayName: string;
+  description: string;
+  safe: boolean;
+  available: boolean;
+  active: boolean;
+}
+
+export interface LabCatalog {
+  activeStrategy: StrategyType;
+  limits: { maxStock: number; maxBuyers: number };
+  strategies: StrategyInfo[];
+}
+
+export interface LabRunResult {
+  strategy: StrategyType;
+  stock: number;
+  buyers: number;
+  succeeded: number;
+  soldOut: number;
+  conflicts: number;
+  errors: number;
+  finalStock: number;
+  oversold: number;
+  phantomStock: number;
+  consistent: boolean;
+  unsold: number;
+  durationMs: number;
+  throughputPerSecond: number;
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+  maxMs: number;
+}

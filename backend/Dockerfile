@@ -1,34 +1,27 @@
-# Multi-Stage Production Dockerfile for TicketFlow Backend
-# Stage 1: Build
+# syntax=docker/dockerfile:1
+
+# --- Build stage ---
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /workspace
 
-# Cache dependencies
-COPY pom.xml mvnw ./
+# Resolve dependencies first so code changes don't invalidate this layer.
+COPY mvnw pom.xml ./
 COPY .mvn .mvn
-RUN ./mvnw dependency:go-offline -B
+RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
 
-# Build application
 COPY src src
-RUN ./mvnw clean package -DskipTests -B
+RUN ./mvnw -B -q package -DskipTests
 
-# Stage 2: Minimal Runtime
+# --- Runtime stage ---
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Security: Run as unprivileged non-root user
 RUN addgroup -S ticketflow && adduser -S ticketflow -G ticketflow
 USER ticketflow:ticketflow
 
-# Copy artifact from builder
 COPY --from=builder /workspace/target/*.jar app.jar
 
 EXPOSE 8080
 
-# Production JVM tuning: container memory awareness & active GC
-ENTRYPOINT ["java", \
-    "-XX:+UseContainerSupport", \
-    "-XX:MaxRAMPercentage=75.0", \
-    "-Djava.security.egd=file:/dev/./urandom", \
-    "-jar", "app.jar"]
-
+# Container-aware heap sizing; the JVM reads cgroup limits by default since Java 10.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

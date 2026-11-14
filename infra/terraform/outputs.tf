@@ -13,3 +13,13 @@ output "cloudfront_domain_name" {
   value       = aws_cloudfront_distribution.cdn.domain_name
 }
 
+output "app_url" {
+  description = "Public URL of the app (SPA + /api)"
+  value       = "https://${aws_cloudfront_distribution.cdn.domain_name}"
+}
+
+output "frontend_bucket" {
+  description = "Upload the built SPA here: aws s3 sync frontend/dist s3://<bucket>"
+  value       = aws_s3_bucket.frontend.bucket
+}
+

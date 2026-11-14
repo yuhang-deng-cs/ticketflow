@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Calendar, MapPin, ShieldCheck, Check, AlertCircle } from 'lucide-react';
 import type { EventItem, TicketTier, User } from '../types';
-import { api } from '../api/client';
+import { api, errorMessage } from '../api/client';
 
 interface EventDetailPageProps {
   event: EventItem;
@@ -49,11 +49,8 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
     try {
       const order = await api.orders.create(event.id, selectedTier.id, quantity);
       onOrderCreated(order);
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          'Failed to reserve tickets. Inventory might have changed due to high concurrency.'
-      );
+    } catch (err) {
+      setError(errorMessage(err, 'Could not reserve tickets. Please try again.'));
     } finally {
       setLoading(false);
     }

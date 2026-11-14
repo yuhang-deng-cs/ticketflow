@@ -1,4 +1,4 @@
-# AWS ECS Fargate Cluster & Microservices Definition
+# ECS Fargate cluster running the Spring Boot backend behind the ALB
 
 resource "aws_ecs_cluster" "main" {
   name = "${var.app_name}-cluster"
@@ -73,7 +73,7 @@ resource "aws_ecs_task_definition" "backend" {
   container_definitions = jsonencode([
     {
       name      = "backend"
-      image     = "public.ecr.aws/ticketflow/backend:latest"
+      image     = var.backend_image
       essential = true
       portMappings = [
         {
@@ -87,7 +87,14 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "DB_PORT", value = "5432" },
         { name = "DB_NAME", value = "ticketflow" },
         { name = "DB_USER", value = "ticketflow_admin" },
-        { name = "DB_PASSWORD", value = var.db_password }
+        { name = "REDIS_HOST", value = aws_elasticache_cluster.redis.cache_nodes[0].address },
+        { name = "REDIS_PORT", value = "6379" },
+        { name = "INVENTORY_STRATEGY", value = var.inventory_strategy },
+        { name = "LAB_ENABLED", value = tostring(var.lab_enabled) }
+      ]
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = aws_ssm_parameter.db_password.arn },
+        { name = "JWT_SECRET", valueFrom = aws_ssm_parameter.jwt_secret.arn }
       ]
       logConfiguration = {
         logDriver = "awslogs"

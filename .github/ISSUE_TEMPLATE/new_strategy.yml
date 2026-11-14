@@ -1,0 +1,23 @@
+name: Propose an inventory strategy
+description: Add a new way of reserving stock to the Oversell Lab
+labels: [strategy, enhancement]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Strategy name
+      placeholder: e.g. Kafka queue + single consumer, sharded stock counters, PostgreSQL advisory locks
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How it works
+      description: What makes it correct (or, for a deliberately broken one, what bug it demonstrates)?
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Expected trade-offs
+      description: Throughput, latency, unsold stock, infrastructure it needs.

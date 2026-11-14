@@ -1,7 +1,9 @@
 package com.ticketflow.booking.dto;
 
 import com.ticketflow.booking.model.OrderStatus;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,6 +28,7 @@ public class BookingDto {
 
         @NotNull(message = "Quantity is required")
         @Min(value = 1, message = "Quantity must be at least 1")
+        @Max(value = 10, message = "At most 10 tickets per order")
         private Integer quantity;
     }
 
@@ -62,9 +65,10 @@ public class BookingDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class PayOrderRequest {
-        @NotNull(message = "Order number is required")
+        @NotBlank(message = "Order number is required")
         private String orderNumber;
-        private String paymentMethod; // e.g. "MOCK_CARD", "STRIPE"
+        /** Payment is mocked; kept so the API shape matches a real checkout. */
+        private String paymentMethod;
     }
 }
 

@@ -22,6 +22,8 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final String BEARER_PREFIX = "Bearer ";
+
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
 
@@ -30,26 +32,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String token = resolveToken(request);
-
-        if (StringUtils.hasText(token) && tokenProvider.validateToken(token)) {
-            String email = tokenProvider.getEmailFromToken(token);
-            User user = userRepository.findByEmail(email).orElse(null);
-
-            if (user != null) {
-                var authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
-                var auth = new UsernamePasswordAuthenticationToken(user, null, Collections.singletonList(authority));
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            }
+        if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            tokenProvider.parseSubject(token)
+                    .flatMap(userRepository::findByEmail)
+                    .ifPresent(user -> authenticate(user, request));
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private String resolveToken(HttpServletRequest request) {
+    private static void authenticate(User user, HttpServletRequest request) {
+        var authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
+        var auth = new UsernamePasswordAuthenticationToken(user, null, Collections.singletonList(authority));
+        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private static String resolveToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
+            return bearerToken.substring(BEARER_PREFIX.length());
         }
         return null;
     }

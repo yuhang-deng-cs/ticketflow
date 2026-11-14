@@ -1,21 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
-import { MetricsBanner } from './components/MetricsBanner';
+import { StatusBanner } from './components/StatusBanner';
 import { EventListPage } from './pages/EventListPage';
 import { EventDetailPage } from './pages/EventDetailPage';
 import { MyOrdersPage } from './pages/MyOrdersPage';
 import { OrderCheckoutModal } from './pages/OrderCheckoutModal';
 import { AuthModal } from './components/AuthModal';
 import { ArchitectureModal } from './pages/ArchitectureModal';
-import type { EventItem, Order, User } from './types';
+import { LabPage } from './pages/LabPage';
+import type { EventItem, Order, User, View } from './types';
 import { api } from './api/client';
 
 export const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => api.auth.getCurrentUser());
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loadingEvents, setLoadingEvents] = useState<boolean>(true);
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
-  const [currentView, setCurrentView] = useState<'events' | 'orders'>('events');
+  const [currentView, setCurrentView] = useState<View>('lab');
 
   // Modals
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -23,35 +24,22 @@ export const App: React.FC = () => {
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
 
-  // Load user from storage on boot
-  useEffect(() => {
-    const storedUser = api.auth.getCurrentUser();
-    if (storedUser) {
-      setUser(storedUser);
-    }
+  const loadEvents = useCallback(() => {
+    return api.events
+      .list()
+      .then(setEvents)
+      .catch((err) => console.error('Failed to load events', err))
+      .finally(() => setLoadingEvents(false));
   }, []);
-
-  // Fetch events
-  const loadEvents = async () => {
-    try {
-      setLoadingEvents(true);
-      const data = await api.events.list();
-      setEvents(data);
-    } catch (err) {
-      console.error('Failed to load events', err);
-    } finally {
-      setLoadingEvents(false);
-    }
-  };
 
   useEffect(() => {
     loadEvents();
-  }, []);
+  }, [loadEvents]);
 
   const handleLogout = () => {
     api.auth.logout();
     setUser(null);
-    setCurrentView('events');
+    if (currentView === 'orders') setCurrentView('events');
   };
 
   const handleOrderCreated = (order: Order) => {
@@ -80,7 +68,7 @@ export const App: React.FC = () => {
         onOpenArchitecture={() => setArchModalOpen(true)}
       />
 
-      <MetricsBanner />
+      <StatusBanner />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {selectedEvent ? (
@@ -94,6 +82,8 @@ export const App: React.FC = () => {
             onOpenAuth={() => setAuthModalOpen(true)}
             onOrderCreated={handleOrderCreated}
           />
+        ) : currentView === 'lab' ? (
+          <LabPage />
         ) : currentView === 'orders' ? (
           <MyOrdersPage
             onPayOrder={(order) => {
@@ -114,26 +104,23 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950/80 py-8 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-900 bg-slate-950/80 py-8 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>
-            TicketFlow © 2026. Architected for High Concurrency with Spring Boot 3 &amp; React.
-          </p>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setArchModalOpen(true)}
-              className="text-slate-400 hover:text-indigo-400 transition"
-            >
-              1+2+3 Design Specs
+          <p>TicketFlow · MIT licensed · demo data is fictional and payments are mocked</p>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setArchModalOpen(true)} className="text-slate-400 hover:text-indigo-400 transition">
+              How it works
             </button>
+            <a href="/swagger-ui.html" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-indigo-400 transition">
+              API reference
+            </a>
             <a
-              href="http://localhost:8080/swagger-ui.html"
+              href="https://github.com/cs50-citizen/ticketflow"
               target="_blank"
               rel="noreferrer"
               className="text-slate-400 hover:text-indigo-400 transition"
             >
-              API Reference
+              GitHub
             </a>
           </div>
         </div>

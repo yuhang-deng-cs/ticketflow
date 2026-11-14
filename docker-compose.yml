@@ -1,13 +1,14 @@
-version: '3.8'
+# Full local stack: PostgreSQL, Redis, backend, frontend, Prometheus, Grafana.
+#   docker compose up --build
+# App: http://localhost:3000   Grafana: http://localhost:3001 (admin / admin)
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: ticketflow-postgres
     environment:
       POSTGRES_DB: ticketflow
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -16,87 +17,71 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres -d ticketflow"]
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - ticketflow-network
+      retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: ticketflow-redis
     ports:
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - ticketflow-network
+      retries: 10
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: ticketflow-backend
+    build: ./backend
     ports:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ticketflow
-      DB_USER: postgres
-      DB_PASSWORD: postgrespassword
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
       REDIS_HOST: redis
-      REDIS_PORT: 6379
+      # Local-only default. Set a real secret for anything internet-facing.
+      JWT_SECRET: ${JWT_SECRET:-local-compose-secret-change-me-0123456789}
+      INVENTORY_STRATEGY: ${INVENTORY_STRATEGY:-ATOMIC_UPDATE}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - ticketflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: ticketflow-frontend
+    build: ./frontend
     ports:
       - "3000:80"
     depends_on:
-      - backend
-    networks:
-      - ticketflow-network
+      backend:
+        condition: service_healthy
 
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: ticketflow-prometheus
     volumes:
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9090:9090"
     depends_on:
       - backend
-    networks:
-      - ticketflow-network
 
   grafana:
     image: grafana/grafana:11.2.0
-    container_name: ticketflow-grafana
     ports:
       - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ticketflow.json
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
-    networks:
-      - ticketflow-network
 
 volumes:
   postgres_data:
-
-networks:
-  ticketflow-network:
-    driver: bridge
-

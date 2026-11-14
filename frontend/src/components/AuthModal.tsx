@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
-import { api } from '../api/client';
+import { api, errorMessage } from '../api/client';
 import type { User } from '../types';
 
 interface AuthModalProps {
@@ -33,8 +33,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       }
       onSuccess(user);
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Authentication failed. Please check credentials.');
+    } catch (err) {
+      setError(errorMessage(err, 'Authentication failed. Please check your email and password.'));
     } finally {
       setLoading(false);
     }
@@ -47,8 +47,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       const user = await api.auth.login(demoEmail, demoPass);
       onSuccess(user);
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Quick login failed');
+    } catch (err) {
+      setError(errorMessage(err, 'Demo login failed. Is the backend running?'));
     } finally {
       setLoading(false);
     }
@@ -82,14 +82,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => handleQuickLogin('demo@ticketflow.io', 'password123')}
+              onClick={() => handleQuickLogin('demo@ticketflow.test', 'password123')}
               className="px-2.5 py-1.5 text-xs rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/30 transition text-center"
             >
               Demo Customer
             </button>
             <button
               type="button"
-              onClick={() => handleQuickLogin('admin@ticketflow.io', 'admin123')}
+              onClick={() => handleQuickLogin('admin@ticketflow.test', 'admin123')}
               className="px-2.5 py-1.5 text-xs rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/30 transition text-center"
             >
               Platform Admin

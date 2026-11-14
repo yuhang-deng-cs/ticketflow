@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, CheckCircle, CreditCard, AlertCircle } from 'lucide-react';
 import type { Order } from '../types';
 import { CountdownTimer } from '../components/CountdownTimer';
-import { api } from '../api/client';
+import { api, errorMessage } from '../api/client';
 
 interface OrderCheckoutModalProps {
   order: Order | null;
@@ -28,8 +28,8 @@ export const OrderCheckoutModal: React.FC<OrderCheckoutModalProps> = ({
     try {
       const confirmed = await api.orders.pay(order.orderNumber);
       onPaymentSuccess(confirmed);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Payment confirmation failed');
+    } catch (err) {
+      setError(errorMessage(err, 'Payment failed. Please try again.'));
     } finally {
       setLoading(false);
     }
