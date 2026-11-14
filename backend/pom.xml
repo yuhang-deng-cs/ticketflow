@@ -21,6 +21,8 @@
         <java.version>21</java.version>
         <jjwt.version>0.12.5</jjwt.version>
         <springdoc.version>2.5.0</springdoc.version>
+        <!-- Boot 3.3 ships 1.19.x, whose Docker API 1.32 is rejected by current Docker engines (min 1.40). -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>
