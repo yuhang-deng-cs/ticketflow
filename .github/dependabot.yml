@@ -1,28 +1,31 @@
+# Minor and patch updates only. Major upgrades (e.g. Spring Boot 4, springdoc 3)
+# need a deliberate migration and are done by hand.
 version: 2
 updates:
   - package-ecosystem: maven
     directory: /backend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
-      spring:
-        patterns: ["org.springframework*"]
+      maven-minor-and-patch:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
-      minor-and-patch:
-        update-types: [minor, patch]
+      npm-minor-and-patch:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
-  - package-ecosystem: docker
-    directory: /backend
-    schedule:
-      interval: monthly
-  - package-ecosystem: docker
-    directory: /frontend
-    schedule:
-      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
