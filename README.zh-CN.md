@@ -55,6 +55,18 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 | `OPTIMISTIC_LOCK` | 100 | 0（184 人因冲突被拒） | 2,114 req/s | 467 ms |
 | `ATOMIC_UPDATE` | 100 | 0 | **10,528 req/s** | **83 ms** |
 
+**同样的场景，GitHub Actions 机器上的 PostgreSQL 16 + Redis 7**（[运行日志](https://github.com/yuhang-deng-cs/ticketflow/actions/runs/43585700950)，单次运行）
+
+| 策略 | 卖出 | 超卖 | 吞吐量 | p99 |
+|---|---:|---:|---:|---:|
+| `NAIVE` | 1000 | **900** ❌（另有 42 张幽灵库存） | 1,384 req/s | 617 ms |
+| `PESSIMISTIC_LOCK` | 100 | 0 | 1,327 req/s | 585 ms |
+| `OPTIMISTIC_LOCK` | 100 | 0（147 人因冲突被拒） | 1,018 req/s | 945 ms |
+| `ATOMIC_UPDATE` | 100 | 0 | 3,525 req/s | 239 ms |
+| `REDIS_LUA` | 100 | 0 | **4,025 req/s** | **146 ms** |
+
+在配置较低的 CI 机器上，Redis 方案反超：一旦 Redis 判定售罄，1000 个买家里有 900 个根本不会访问 PostgreSQL。
+
 **公平场景：500 人抢 500 张（人手一张）**
 
 | 策略 | 卖出 | 问题 |

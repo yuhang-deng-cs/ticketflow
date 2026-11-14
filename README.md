@@ -74,6 +74,18 @@ Median of three runs on one laptop (Ryzen 9 7945HX, PostgreSQL 14 embedded, Hika
 | `OPTIMISTIC_LOCK` | 100 | 0 (184 buyers bounced by contention) | 2,114 req/s | 467 ms |
 | `ATOMIC_UPDATE` | 100 | 0 | **10,528 req/s** | **83 ms** |
 
+**Same race on PostgreSQL 16 + Redis 7, on a GitHub Actions runner** ([run log](https://github.com/yuhang-deng-cs/ticketflow/actions/runs/43585700950), single run)
+
+| Strategy | Sold | Oversold | Throughput | p99 latency |
+|---|---:|---:|---:|---:|
+| `NAIVE` | 1,000 | **900** ❌ (+42 phantom) | 1,384 req/s | 617 ms |
+| `PESSIMISTIC_LOCK` | 100 | 0 | 1,327 req/s | 585 ms |
+| `OPTIMISTIC_LOCK` | 100 | 0 (147 bounced) | 1,018 req/s | 945 ms |
+| `ATOMIC_UPDATE` | 100 | 0 | 3,525 req/s | 239 ms |
+| `REDIS_LUA` | 100 | 0 | **4,025 req/s** | **146 ms** |
+
+On the smaller CI machine the Redis gate pulls ahead: once Redis says "sold out", 900 of the 1,000 buyers never touch PostgreSQL.
+
 **Fair fight: 500 buyers, 500 tickets (one each)**
 
 | Strategy | Sold | What went wrong |
